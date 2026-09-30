@@ -1,0 +1,768 @@
+// Timeless Trends — PostgreSQL schema for Prisma ORM 7
+//
+// Start with one Product and one ProductVariant even when an item has no
+// selectable options. This keeps SKU, price, and stock management consistent.
+// Prices use Decimal (never Float) so monetary totals remain exact. Order
+// addresses, customer details, item names, and prices are snapshots: later
+// profile or catalog edits must not rewrite historical orders.
+//
+// The connection URL lives in prisma.config.mjs (Prisma ORM 7 convention).
+// Product variants own inventory. ProductOption describes choices shown in
+// the storefront (length, color, texture, shade, size); ProductVariantOption
+// records the exact option values selected for a sellable SKU.
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  STAFF
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+  VOIDED
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  RETURNED
+}
+
+enum InventoryMovementType {
+  RECEIPT
+  SALE
+  CUSTOMER_RETURN
+  DAMAGE
+  ADJUSTMENT
+  RESERVED
+  RELEASED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+  BOTH
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContactMessageStatus {
+  NEW
+  REPLIED
+  RESOLVED
+  SPAM
+}
+
+enum StorefrontCampaignType {
+  HERO
+  ANNOUNCEMENT
+  PROMOTION
+  ADVERTISEMENT
+}
+
+/// One identity table for shoppers and store staff. A nullable passwordHash
+/// leaves room for passwordless or third-party authentication providers.
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String?
+  firstName         String?
+  lastName          String?
+  phone             String?
+  role              UserRole           @default(CUSTOMER)
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  addresses         CustomerAddress[]
+  carts             Cart[]
+  wishlists         Wishlist[]
+  orders            Order[]
+  productReviews    ProductReview[]
+  blogPosts         BlogPost[]          @relation("BlogAuthor")
+  blogComments      BlogComment[]
+  couponRedemptions CouponRedemption[]
+  inventoryMovements InventoryMovement[] @relation("InventoryActor")
+
+  @@index([role, createdAt])
+  @@index([createdAt])
+}
+
+/// Saved, editable addresses owned by a customer. Orders use separate,
+/// immutable OrderAddress snapshots so address edits never change past orders.
+model CustomerAddress {
+  id           String      @id @default(cuid())
+  userId       String
+  type         AddressType @default(SHIPPING)
+  label        String?
+  firstName    String
+  lastName     String
+  company      String?
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  region       String?
+  postalCode   String
+  countryCode  String      @db.Char(2)
+  phone        String?
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault])
+}
+
+/// Storefront collections, optionally nested (for example Hair Care → Oils).
+model Category {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  imageUrl    String?
+  isActive    Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  parentId    String?
+  parent      Category?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[]        @relation("CategoryTree")
+  products    ProductCategory[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([parentId, sortOrder])
+  @@index([isActive, sortOrder])
+}
+
+/// The editorial/catalog identity of an item; sellable SKUs and prices live
+/// in ProductVariant so every item follows the same inventory rules.
+model Product {
+  id             String            @id @default(cuid())
+  name           String
+  slug           String            @unique
+  description    String            @db.Text
+  status         ProductStatus     @default(DRAFT)
+  isFeatured     Boolean           @default(false)
+  seoTitle       String?
+  seoDescription String?           @db.Text
+  publishedAt    DateTime?
+  categories     ProductCategory[]
+  images         ProductImage[]
+  options        ProductOption[]
+  variants       ProductVariant[]
+  reviews        ProductReview[]
+  cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
+  orderItems     OrderItem[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([isFeatured, status])
+  @@index([createdAt])
+}
+
+model ProductCategory {
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  altText   String?
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+}
+
+/// Customer-facing choice groups such as Length, Shade, or Texture.
+model ProductOption {
+  id        String               @id @default(cuid())
+  productId String
+  name      String
+  sortOrder Int                  @default(0)
+  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  values    ProductOptionValue[]
+
+  @@unique([productId, name])
+  @@index([productId, sortOrder])
+}
+
+model ProductOptionValue {
+  id        String                @id @default(cuid())
+  optionId  String
+  value     String
+  sortOrder Int                   @default(0)
+  option    ProductOption         @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  variants  ProductVariantOption[]
+
+  @@unique([optionId, value])
+  @@index([optionId, sortOrder])
+}
+
+/// A purchasable SKU: its price, compare-at price, barcode, stock, and weight.
+/// A product without choices still gets a single default variant.
+model ProductVariant {
+  id               String                @id @default(cuid())
+  productId        String
+  sku              String                @unique
+  name             String?
+  price            Decimal               @db.Decimal(10, 2)
+  compareAtPrice   Decimal?              @db.Decimal(10, 2)
+  costPrice        Decimal?              @db.Decimal(10, 2)
+  barcode          String?               @unique
+  stockQuantity    Int                   @default(0)
+  reservedQuantity Int                   @default(0)
+  lowStockAt       Int                   @default(5)
+  weightGrams      Int?
+  isDefault        Boolean               @default(false)
+  isActive         Boolean               @default(true)
+  product          Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  optionValues     ProductVariantOption[]
+  inventoryMoves   InventoryMovement[]
+  cartItems        CartItem[]
+  wishlistItems    WishlistItem[]
+  orderItems       OrderItem[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([productId, isActive])
+  @@index([stockQuantity])
+}
+
+model ProductVariantOption {
+  variantId     String
+  optionValueId String
+  variant       ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionValue   ProductOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionValueId])
+  @@index([optionValueId])
+}
+
+/// Append-only stock history. Keep these records instead of overwriting the
+/// audit trail when receiving, selling, returning, or adjusting stock.
+model InventoryMovement {
+  id            String                @id @default(cuid())
+  variantId     String
+  actorId       String?
+  type          InventoryMovementType
+  quantity      Int
+  reference     String?
+  note          String?               @db.Text
+  variant       ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  actor         User?                 @relation("InventoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt     DateTime              @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Persistent signed-in cart or anonymous cart identified by a secure token.
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?
+  token     String?    @unique
+  expiresAt DateTime?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([expiresAt])
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  productId String
+  variantId String
+  quantity  Int            @default(1)
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@index([productId])
+}
+
+/// A customer's named saved-products list; WishlistItem contains its entries.
+model Wishlist {
+  id        String         @id @default(cuid())
+  userId    String
+  name      String         @default("My wishlist")
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model WishlistItem {
+  id         String          @id @default(cuid())
+  wishlistId String
+  productId  String
+  variantId  String?
+  wishlist   Wishlist        @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant    ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  createdAt  DateTime        @default(now())
+
+  @@unique([wishlistId, productId, variantId])
+  @@index([productId])
+}
+
+/// Checkout-level totals and customer identity snapshot. Amounts are stored
+/// as exact decimals and addresses, line items, and payment attempts are
+/// normalized into their own related records below.
+model Order {
+  id                  String            @id @default(cuid())
+  orderNumber         String            @unique
+  userId              String?
+  customerEmail       String
+  customerFirstName   String
+  customerLastName    String
+  customerPhone       String?
+  status              OrderStatus       @default(PENDING)
+  paymentStatus       PaymentStatus     @default(PENDING)
+  fulfillmentStatus   FulfillmentStatus @default(UNFULFILLED)
+  currency            String            @default("USD") @db.Char(3)
+  subtotal            Decimal           @db.Decimal(10, 2)
+  discountTotal       Decimal           @default(0) @db.Decimal(10, 2)
+  taxTotal            Decimal           @default(0) @db.Decimal(10, 2)
+  shippingTotal       Decimal           @default(0) @db.Decimal(10, 2)
+  grandTotal          Decimal           @db.Decimal(10, 2)
+  customerNote        String?           @db.Text
+  internalNote        String?           @db.Text
+  couponCode          String?
+  user                User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  addresses           OrderAddress[]
+  payments            Payment[]
+  shipments           Shipment[]
+  couponRedemption    CouponRedemption?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus, createdAt])
+  @@index([customerEmail])
+}
+
+/// Immutable checkout line snapshot. Product relations are optional so a
+/// product can be removed without erasing what the customer actually bought.
+model OrderItem {
+  id                 String          @id @default(cuid())
+  orderId            String
+  productId          String?
+  variantId          String?
+  productName        String
+  variantDescription String?
+  sku                String
+  quantity           Int
+  unitPrice          Decimal         @db.Decimal(10, 2)
+  discountTotal      Decimal         @default(0) @db.Decimal(10, 2)
+  lineTotal          Decimal         @db.Decimal(10, 2)
+  selectedOptions    Json?
+  order              Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product            Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant            ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sku])
+}
+
+model OrderAddress {
+  id           String      @id @default(cuid())
+  orderId      String
+  type         AddressType
+  firstName    String
+  lastName     String
+  company      String?
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  region       String?
+  postalCode   String
+  countryCode  String      @db.Char(2)
+  phone        String?
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, type])
+}
+
+/// Gateway attempts are separate from order state: retries and partial
+/// refunds can be recorded without discarding prior payment history.
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  provider          String
+  providerPaymentId String?
+  status            PaymentStatus @default(PENDING)
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @db.Char(3)
+  failureCode       String?
+  failureMessage    String?
+  paidAt            DateTime?
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds           Refund[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([provider, providerPaymentId])
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Refund {
+  id               String   @id @default(cuid())
+  paymentId        String
+  providerRefundId String?
+  amount           Decimal  @db.Decimal(10, 2)
+  reason           String?
+  refundedAt       DateTime @default(now())
+  payment          Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, providerRefundId])
+  @@index([refundedAt])
+}
+
+/// Fulfillment parcel and carrier tracking. One order can produce multiple
+/// shipments when items are sent in separate packages.
+model Shipment {
+  id                String            @id @default(cuid())
+  orderId           String
+  carrier           String?
+  service           String?
+  trackingNumber    String?
+  trackingUrl       String?
+  status            FulfillmentStatus @default(UNFULFILLED)
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  order             Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trackingEvents    ShipmentEvent[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([trackingNumber])
+}
+
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  status      String
+  description String?
+  location    String?
+  occurredAt  DateTime
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, occurredAt])
+}
+
+/// Reusable promotion rules; each successful use is recorded in
+/// CouponRedemption for per-order and per-customer reporting.
+model Coupon {
+  id              String             @id @default(cuid())
+  code            String             @unique
+  description     String?
+  type            DiscountType
+  value           Decimal            @db.Decimal(10, 2)
+  minimumSubtotal Decimal?           @db.Decimal(10, 2)
+  usageLimit      Int?
+  usageCount      Int                @default(0)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  isActive        Boolean            @default(true)
+  redemptions     CouponRedemption[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([isActive, startsAt, expiresAt])
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  orderId   String   @unique
+  userId    String?
+  discount  Decimal  @db.Decimal(10, 2)
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([couponId, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Moderated product feedback, optionally linked to a verified customer.
+model ProductReview {
+  id          String   @id @default(cuid())
+  productId   String
+  userId      String?
+  authorName  String
+  authorEmail String?
+  rating      Int
+  title       String?
+  body        String   @db.Text
+  isVerified  Boolean  @default(false)
+  isPublished Boolean  @default(false)
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId, isPublished, createdAt])
+  @@index([userId])
+}
+
+model BlogCategory {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+}
+
+/// Store editorial content with draft/published states, SEO fields, and
+/// optional author and category relationships.
+model BlogPost {
+  id              String      @id @default(cuid())
+  authorId        String?
+  categoryId      String?
+  title           String
+  slug            String      @unique
+  excerpt         String?     @db.Text
+  content         String      @db.Text
+  coverImageUrl   String?
+  status          BlogStatus  @default(DRAFT)
+  isFeatured      Boolean     @default(false)
+  seoTitle        String?
+  seoDescription  String?     @db.Text
+  publishedAt     DateTime?
+  author          User?       @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  category        BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  comments        BlogComment[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([categoryId, status])
+  @@index([authorId])
+}
+
+model BlogComment {
+  id          String   @id @default(cuid())
+  postId      String
+  userId      String?
+  authorName  String
+  authorEmail String?
+  body        String   @db.Text
+  isApproved  Boolean  @default(false)
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([postId, isApproved, createdAt])
+  @@index([userId])
+}
+
+/// A storefront page such as Home, Our Story, About, FAQ, or Contact. The
+/// body is composed from ordered sections so hero copy, imagery, and feature
+/// content can be managed without tying the CMS to a single page layout.
+model StorePage {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  status         BlogStatus     @default(DRAFT)
+  seoTitle       String?
+  seoDescription String?        @db.Text
+  publishedAt    DateTime?
+  sections       StorePageSection[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+/// Flexible, ordered section payloads support page-specific blocks while
+/// keeping their ordering and publication lifecycle relational and queryable.
+model StorePageSection {
+  id        String    @id @default(cuid())
+  pageId    String
+  type      String
+  content   Json
+  sortOrder Int       @default(0)
+  isVisible Boolean   @default(true)
+  page      StorePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, sortOrder])
+}
+
+/// Homepage hero slides and campaign placements. `status` controls editorial
+/// publication; `isActive` and the optional schedule control campaign delivery.
+/// The content fields map to the hero/promotion forms in the admin Content Studio.
+/// Use this table for campaign placements instead of duplicating the same hero
+/// or advertisement payload inside StorePageSection.
+model StorefrontCampaign {
+  id             String                @id @default(cuid())
+  slug           String                @unique
+  type           StorefrontCampaignType
+  title          String
+  eyebrow        String?
+  body           String                @db.Text
+  imageUrl       String?
+  imageAltText   String?
+  ctaLabel       String?
+  ctaUrl         String?
+  status         BlogStatus            @default(DRAFT)
+  isActive       Boolean               @default(false)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([type, status, sortOrder])
+  @@index([isActive, startsAt, endsAt])
+}
+
+/// Copy and concierge callout for the FAQ landing page. FAQItem records hold
+/// the individual categorized questions; this singleton holds the page chrome.
+model FAQPageContent {
+  key             String   @id @default("faq")
+  eyebrow         String?
+  title           String
+  introduction    String   @db.Text
+  supportTitle    String
+  supportBody     String   @db.Text
+  supportCtaLabel String
+  supportCtaUrl   String
+  seoTitle        String?
+  seoDescription  String?  @db.Text
+  updatedAt       DateTime @updatedAt
+}
+
+/// Public contact-page details and form configuration. Submitted enquiries
+/// remain in ContactMessage so page content is not mixed with customer records.
+/// `businessHours` is an ordered JSON array of day/open/close entries;
+/// `formFields` is an ordered array of field name, label, input type, and
+/// required flag definitions rendered by the storefront contact form.
+model ContactPageContent {
+  key                   String   @id @default("contact")
+  eyebrow               String?
+  title                 String
+  introduction          String   @db.Text
+  address               String   @db.Text
+  phone                 String
+  email                 String
+  businessHours         Json
+  consultationTitle     String?
+  consultationBody      String?  @db.Text
+  consultationCtaLabel  String?
+  consultationCtaUrl    String?
+  formTitle             String
+  formDescription       String?  @db.Text
+  formFields            Json
+  seoTitle              String?
+  seoDescription        String?  @db.Text
+  updatedAt             DateTime @updatedAt
+}
+
+/// Frequently asked questions can be grouped and ordered independently,
+/// allowing the storefront and content workspace to show consistent answers.
+model FAQItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  category  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, category, sortOrder])
+}
+
+/// Contact-form submissions are kept separate from order support and can be
+/// triaged in the admin inbox without requiring a customer account.
+model ContactMessage {
+  id          String              @id @default(cuid())
+  name        String
+  email       String
+  subject     String
+  message     String              @db.Text
+  status      ContactMessageStatus @default(NEW)
+  repliedAt   DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+/// Keyed JSON values for store-wide preferences (checkout, shipping,
+/// notifications, and storefront module visibility). Keep frequently queried
+/// business entities in dedicated models rather than hiding them in this table.
+model StoreSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

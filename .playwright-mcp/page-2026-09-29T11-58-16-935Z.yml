@@ -1,0 +1,109 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - generic [ref=f2e7]:
+      - text: "Grand Opening Sale: Use Code"
+      - strong [ref=f2e8]: TIMELESS20
+      - text: for 20% off plus free shipping!
+    - banner [ref=f2e9]:
+      - generic [ref=f2e10]:
+        - button "Open mobile navigation" [ref=f2e11]
+        - generic [ref=f2e17] [cursor=pointer]:
+          - generic [ref=f2e18]:
+            - text: TIMELESS
+            - generic [ref=f2e19]: TRENDS
+          - generic [ref=f2e20]: Hair & Cosmetics
+        - generic [ref=f2e21]:
+          - button "Open luxury search bar" [ref=f2e22] [cursor=pointer]
+          - button "Wishlist page" [ref=f2e26]
+          - button "Open Cart" [ref=f2e29]
+          - button "User Account Dashboard" [ref=f2e33] [cursor=pointer]:
+            - generic [ref=f2e37]: Sign In
+    - generic [ref=f2e39]:
+      - generic [ref=f2e40]:
+        - text: Checkout Prep
+        - heading "Your Shopping Bag" [level=1] [ref=f2e41]
+      - generic [ref=f2e42]:
+        - heading "Your Premium Bag is Empty" [level=2] [ref=f2e47]
+        - paragraph [ref=f2e48]: No luxurious wigs or glowing serum cosmetics are prepared. Browse our collection catalog to formulate your signature beauty standard.
+        - button "Explore Master Collections" [ref=f2e49]
+    - contentinfo [ref=f2e50]:
+      - generic [ref=f2e51]:
+        - generic [ref=f2e52]:
+          - generic [ref=f2e58]:
+            - heading "Premium Graded Virgin Hair" [level=4] [ref=f2e59]
+            - paragraph [ref=f2e60]: 100% Remy human donor hair, bleach-ready and style-flexible.
+          - generic [ref=f2e68]:
+            - heading "Toll-Free Express Delivery" [level=4] [ref=f2e69]
+            - paragraph [ref=f2e70]: Complimentary expedited courier packaging for orders above $150.
+          - generic [ref=f2e76]:
+            - heading "Secure Returns System" [level=4] [ref=f2e77]
+            - paragraph [ref=f2e78]: Hygienically verified, 14-day replacement return window policy.
+        - generic [ref=f2e79]:
+          - generic [ref=f2e80]:
+            - generic [ref=f2e81]:
+              - generic [ref=f2e82]: TIMELESS TRENDS
+              - generic [ref=f2e83]: Hair & Cosmetics
+            - paragraph [ref=f2e84]: Crafting world-class, premium elegance for hair stylists and cosmetics connoisseurs globally. Your supreme beauty standard starts here.
+            - generic [ref=f2e85]:
+              - heading "Newsletter VIP Club" [level=5] [ref=f2e86]
+              - paragraph [ref=f2e87]: Subscribe for early collection releases & a 20% offline token.
+              - generic [ref=f2e88]:
+                - textbox "Enter email address" [ref=f2e89]
+                - button "Subscribe" [ref=f2e90]
+          - generic [ref=f2e93]:
+            - heading "Shop Collections" [level=5] [ref=f2e94]
+            - list [ref=f2e95]:
+              - listitem [ref=f2e96]:
+                - button "Premium Wigs & HD Lace" [ref=f2e97]
+              - listitem [ref=f2e98]:
+                - button "Weft & Tape-In Extensions" [ref=f2e99]
+              - listitem [ref=f2e100]:
+                - button "White Caviar & Oils Essentials" [ref=f2e101]
+              - listitem [ref=f2e102]:
+                - button "Velvet Matte Lipsticks" [ref=f2e103]
+              - listitem [ref=f2e104]:
+                - button "Serum Glow Foundations" [ref=f2e105]
+              - listitem [ref=f2e106]:
+                - button "handcrafted Brushes & Electronics" [ref=f2e107]
+          - generic [ref=f2e108]:
+            - heading "Customer Care" [level=5] [ref=f2e109]
+            - list [ref=f2e110]:
+              - listitem [ref=f2e111]:
+                - button "Track Past Shipment Orders" [ref=f2e112]
+              - listitem [ref=f2e113]:
+                - button "Returns & Refunds Guidelines" [ref=f2e114]
+              - listitem [ref=f2e115]:
+                - button "Book Virtual Hair Consultations" [ref=f2e116]
+              - listitem [ref=f2e117]:
+                - button "Stylist Salon Discount application" [ref=f2e118]
+              - listitem [ref=f2e119]:
+                - button "Wholesale & Brand Ambassadorship" [ref=f2e120]
+          - generic [ref=f2e121]:
+            - heading "Flagship Boutique" [level=5] [ref=f2e122]
+            - list [ref=f2e123]:
+              - listitem [ref=f2e124]:
+                - generic [ref=f2e128]: 128 Luxury Boulevard, Suite 500, San Francisco, CA 94107
+              - listitem [ref=f2e129]:
+                - generic [ref=f2e132]: +1 (800) Luxury-Hair
+              - listitem [ref=f2e133]:
+                - generic [ref=f2e137]: concierge@timelesstrends.com
+              - listitem [ref=f2e138]:
+                - generic [ref=f2e142]:
+                  - generic [ref=f2e143]: "Mon - Sat: 9:00 AM - 8:00 PM"
+                  - generic [ref=f2e144]: "Sunday: 11:00 AM - 6:00 PM PST"
+        - generic [ref=f2e145]:
+          - paragraph [ref=f2e146]: © 2026 Timeless Trends Hair & Cosmetics. Designed with sheer premium Vercel and shadcn/ui aesthetic guidelines. All Rights Reserved.
+          - generic [ref=f2e147]:
+            - button "Terms of Salon Service" [ref=f2e148]
+            - button "Privacy Shield Policies" [ref=f2e149]
+            - button "Shipping & VAT Fees" [ref=f2e150]
+          - generic [ref=f2e151]:
+            - link "Visit us on Instagram" [ref=f2e152] [cursor=pointer]:
+              - /url: https://instagram.com
+            - link "Visit us on Facebook" [ref=f2e155] [cursor=pointer]:
+              - /url: https://facebook.com
+            - link "Visit us on Twitter" [ref=f2e158] [cursor=pointer]:
+              - /url: https://twitter.com
+            - link "Visit us on YouTube" [ref=f2e161] [cursor=pointer]:
+              - /url: https://youtube.com
+  - button "Open Next.js Dev Tools" [ref=f2e169] [cursor=pointer]
